@@ -1,0 +1,10 @@
+## Interface: 16001, 11508
+## Title: Hammer Sounds
+## Notes: Swaps your two-handed mace hit sounds for silly cartoon hammer sounds.
+## Author: Logan
+## Version: 1.5.0
+## SavedVariables: HammerSoundsDB
+## IconTexture: Interface\Icons\INV_Hammer_16
+
+MuteList.lua
+HammerSounds.lua
