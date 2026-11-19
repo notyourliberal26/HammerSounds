@@ -2,7 +2,7 @@
 ## Title: Hammer Sounds
 ## Notes: Silly cartoon bonk sounds when you hit things, with any weapon type you choose.
 ## Author: Logan
-## Version: 1.6.0
+## Version: 1.7.0
 ## SavedVariables: HammerSoundsDB
 ## IconTexture: Interface\Icons\INV_Hammer_16
 

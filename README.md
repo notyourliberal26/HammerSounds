@@ -8,7 +8,7 @@ Made for **WoW Forever** (interface 16001). It also loads on Classic Era (11508)
 
 - Plays a random cartoon sound every time you land a hit, never the same sound twice in a row.
 - Works with **every weapon type**, plus unarmed. Each type can be switched on or off, and there's a one-command "all on" / "all off".
-- Mutes the stock two-handed mace hit sounds while you have one equipped, so only the cartoon sound plays. Other weapons keep their normal hit sound under the cartoon one. Enemy NPC hits always sound normal.
+- Mutes the game's own hit sound for whatever weapons you have equipped, so only the cartoon sound plays. When you swap weapons, the old type's sounds come back. Enemy NPC hits always sound normal.
 - Has two sound sets: **bonk mode** (the default, 15 bonks and boinks) and **all mode** (31 sounds, adding slide whistles, frying pans, horns and boings).
 - Saves your settings between sessions.
 
@@ -84,7 +84,7 @@ The addon checks your main hand, off hand and ranged slot. Melee swings play a s
 | `/hammer bonk` | Bonks only (default, 15 sounds) |
 | `/hammer sounds bonk` | Same as `/hammer bonk` |
 | `/hammer sounds all` | Every sound (31) |
-| `/hammer mute` | Toggle muting the stock two-handed mace hit sounds |
+| `/hammer mute` | Toggle muting the game's own hit sounds for your equipped weapons |
 | `/hammer channel sfx` | Play through the Sound Effects volume (default) |
 | `/hammer channel master` | Play through the Master volume |
 
@@ -107,7 +107,32 @@ WoW Forever runs on the newer engine that blocks addons from reading the combat 
 
 On Classic Era, where the combat log is still open, it uses `COMBAT_LOG_EVENT_UNFILTERED` instead (swings, shots and physical abilities), which knows exactly whose hit it was.
 
-Stock sound muting uses `MuteSoundFile` with the 270 player-side two-handed mace hit file IDs in `MuteList.lua` (taken from the wowdev community listfile).
+### Muting the original hit sounds
+
+`MuteList.lua` holds 1,474 file IDs of the game's player-side weapon **impact** sounds, grouped by weapon type. When you equip a weapon type that's switched on, the addon calls `MuteSoundFile` on that type's list, and `UnmuteSoundFile` when you swap away or turn the addon off.
+
+| Muted lists | Covers |
+|---|---|
+| `2hmace`, `1hmace` | two- and one-handed maces (wood and metal) |
+| `2hsword`, `1hsword` | two- and one-handed swords |
+| `2haxe`, `1haxe` | two- and one-handed axes |
+| `staff` | staves |
+| `dagger` | daggers |
+| `unarmed` | unarmed hits, also used for fist weapons |
+| `bow`, `gun` | arrow and bullet impacts (bows also cover crossbows) |
+
+Good to know:
+
+- **Polearms, spears, thrown weapons and wands** don't have their own impact sounds in the game files I could identify, so their original sound still plays under the cartoon one.
+- Swing whooshes, bow draws and gunshots aren't muted, only the impact.
+- Muting is client-wide. While, say, swords are muted for you, other players' sword hits are quiet on your screen too. NPC weapon sounds are separate files and are never muted.
+
+To regenerate the list from a fresh copy of the [wowdev community listfile](https://github.com/wowdev/wow-listfile):
+
+```bash
+curl -sL https://github.com/wowdev/wow-listfile/releases/latest/download/community-listfile.csv | grep -i ";sound/item/weapons/" > weapon_sounds.txt
+python tools/make_mutelist.py weapon_sounds.txt HammerSounds/MuteList.lua
+```
 
 ## Adding your own sounds
 
@@ -123,8 +148,9 @@ Only ship sounds you have the rights to share.
 HammerSounds/
   HammerSounds.toc   addon manifest
   HammerSounds.lua   hit detection, weapon toggles, sound playback, slash commands
-  MuteList.lua       stock mace sound file IDs to mute
+  MuteList.lua       stock weapon hit sound file IDs to mute, per weapon type
   Sounds/            31 .ogg files + README.txt with credits
+tools/make_mutelist.py  regenerates MuteList.lua from the community listfile
 package.ps1          builds dist/HammerSounds-<version>.zip for CurseForge
 ```
 

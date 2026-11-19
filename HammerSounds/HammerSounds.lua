@@ -1,6 +1,6 @@
 -- HammerSounds: plays a random silly sound when you hit something with any
--- weapon type you've switched on (all of them by default), and optionally
--- mutes the stock two-handed mace hit sounds.
+-- weapon type you've switched on (all of them by default), and mutes the
+-- stock hit sounds of the weapons you have equipped.
 --
 -- Works on WoW Forever (interface 16001), where the combat log is closed to
 -- addons and combat values can be "secret", and on Classic Era, where the
@@ -108,7 +108,7 @@ local WEAPON_ALIASES = {
 
 local DEFAULTS = {
     enabled = true,
-    mute = true,       -- silence the stock 2H mace hit sounds while a 2H mace is equipped
+    mute = true,       -- silence the stock hit sounds of your equipped (enabled) weapons
     channel = "SFX",   -- SFX or Master
     debug = false,
     soundSet = "bonk", -- "bonk" = just the bonks, "all" = every sound
@@ -116,12 +116,11 @@ local DEFAULTS = {
 
 local db
 local hasHammer = false   -- an enabled weapon type is equipped
-local has2HMace = false   -- for muting the stock 2H mace sounds
+local muteKeys = {}       -- equipped + enabled weapon types whose stock hit sounds get muted
 local hasWand = false     -- wand hits aren't physical, so let them through
 local meleeOn = false     -- an enabled weapon in main/off hand (or unarmed)
 local rangedOn = false    -- an enabled bow/gun/crossbow/thrown/wand
 local equippedNames = ""
-local muted = false
 local lastIndex, lastPlay, lastCast = 0, 0, 0
 local warnedPlay = false
 
@@ -157,7 +156,8 @@ end
 -- Looks at main hand (16), off hand (17) and ranged slot (18).
 local function UpdateWeapon()
     local was = hasHammer
-    hasHammer, has2HMace, hasWand = false, false, false
+    hasHammer, hasWand = false, false
+    muteKeys = {}
     local names = {}
     local main = WeaponIn(16)
     local found = {}
@@ -173,7 +173,7 @@ local function UpdateWeapon()
             if db.weapons[w.key] then
                 hasHammer = true
                 if i == 3 then rangedOn = true else meleeOn = true end
-                if w.key == "2hmace" then has2HMace = true end
+                muteKeys[#muteKeys + 1] = w.key
                 if w.key == "wand" then hasWand = true end
             end
         end
@@ -184,17 +184,33 @@ local function UpdateWeapon()
     end
 end
 
-local function SetMuted(want)
-    if want == muted or not MuteSoundFile then return end
-    local fn = want and MuteSoundFile or UnmuteSoundFile
-    for _, id in ipairs(ns.MUTE_IDS or {}) do
-        pcall(fn, id)
-    end
-    muted = want
-end
+-- Mutes the stock hit sounds (MuteList.lua) for each weapon type you have
+-- equipped and switched on, and unmutes them again when you swap away.
+-- Muting is client-wide: other players' hits with that weapon type go quiet
+-- too while it's active. NPC weapon sounds are separate files and stay normal.
+local mutedLists = {}   -- list table -> true (fist/unarmed and bow/crossbow share lists)
 
 local function UpdateMute()
-    SetMuted(db.enabled and db.mute and has2HMace)
+    if not MuteSoundFile or not ns.MUTE then return end
+    local want = {}
+    if db.enabled and db.mute then
+        for _, key in ipairs(muteKeys) do
+            local list = ns.MUTE[key]
+            if list then want[list] = true end
+        end
+    end
+    for list in pairs(mutedLists) do
+        if not want[list] then
+            for _, id in ipairs(list) do pcall(UnmuteSoundFile, id) end
+            mutedLists[list] = nil
+        end
+    end
+    for list in pairs(want) do
+        if not mutedLists[list] then
+            for _, id in ipairs(list) do pcall(MuteSoundFile, id) end
+            mutedLists[list] = true
+        end
+    end
 end
 
 local function CurrentSounds()
@@ -384,7 +400,7 @@ local function CountWeaponsOn()
 end
 
 local function Status()
-    Print(("enabled %s, mute stock 2H mace sounds %s, channel %s, debug %s"):format(
+    Print(("enabled %s, mute stock weapon sounds %s, channel %s, debug %s"):format(
         OnOff(db.enabled), OnOff(db.mute), db.channel, OnOff(db.debug)))
     Print(("weapons on: %d of %d, equipped: %s (%s)"):format(
         CountWeaponsOn(), #WEAPONS, equippedNames ~= "" and equippedNames or "?",
@@ -429,7 +445,7 @@ local function Help()
     print("   /hammer <type> [on|off]  e.g. /hammer dagger off, /hammer 2hsword on")
     print("   /hammer bonk         bonk sounds only")
     print("   /hammer sounds all   every sound   (/hammer sounds bonk = bonks)")
-    print("   /hammer mute         toggle muting the stock 2H mace sounds")
+    print("   /hammer mute         toggle muting the stock weapon hit sounds")
     print("   /hammer channel sfx | master    /hammer debug    /hammer status")
 end
 
@@ -477,7 +493,7 @@ SlashCmdList["HAMMERSOUNDS"] = function(msg)
     elseif cmd == "mute" then
         db.mute = not db.mute
         UpdateMute()
-        Print("mute stock 2H mace sounds " .. OnOff(db.mute))
+        Print("mute stock weapon hit sounds " .. OnOff(db.mute))
     elseif cmd == "channel" then
         db.channel = (arg == "master") and "Master" or "SFX"
         Print("playing on the " .. db.channel .. " channel")
